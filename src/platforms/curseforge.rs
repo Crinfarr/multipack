@@ -1,46 +1,8 @@
-use std::collections::BTreeMap;
-
 use serde::Deserialize;
 
 #[derive(Deserialize)]
 #[allow(unused)]
-pub struct ModrinthMeta {
-    pub game: String,
-    #[serde(rename = "formatVersion")]
-    pub format_version: u8,
-    #[serde(rename = "versionId")]
-    pub version_id: String,
-    pub name: String,
-    pub summary: String,
-    pub files: Vec<ModrinthJarMeta>,
-    pub dependencies: BTreeMap<String, String>,
-}
-#[derive(Deserialize)]
-#[allow(unused)]
-pub struct ModrinthJarMeta {
-    pub path: String,
-    pub hashes: ModrinthJarFileHashes,
-    pub env: ModrinthEnvironmentRequirement,
-    pub downloads: Vec<String>,
-    #[serde(rename = "fileSize")]
-    pub file_size: u32,
-}
-#[derive(Deserialize)]
-#[allow(unused)]
-pub struct ModrinthJarFileHashes {
-    pub sha512: String,
-    pub sha1: String,
-}
-#[derive(Deserialize)]
-#[allow(unused)]
-pub struct ModrinthEnvironmentRequirement {
-    pub client: String,
-    pub server: String,
-}
-
-#[derive(Deserialize)]
-#[allow(unused)]
-#[serde(rename = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct CurseforgeMeta {
     pub minecraft: CurseMinecraftMetadata,
     pub manifest_type: String,
@@ -53,7 +15,17 @@ pub struct CurseforgeMeta {
 }
 #[derive(Deserialize)]
 #[allow(unused)]
-#[serde(rename = "camelCase")]
+pub struct CurseGetModResponse {
+    pub data: CurseMod,
+}
+#[derive(Deserialize)]
+#[allow(unused)]
+pub struct CurseGetModFileResponse {
+    pub data: CurseFile,
+}
+#[derive(Deserialize)]
+#[allow(unused)]
+#[serde(rename_all = "camelCase")]
 pub struct CurseMinecraftMetadata {
     pub version: String,
     pub mod_loaders: Vec<CurseModLoaderMeta>,
@@ -66,24 +38,19 @@ pub struct CurseModLoaderMeta {
 }
 #[derive(Deserialize, Clone)]
 #[allow(unused)]
-#[serde(rename = "camelCase")]
 pub struct CurseFileDescription {
-    pub project_id: String,
-    pub file_id: String,
+    #[serde(rename = "projectID")]
+    pub project_id: u32,
+    #[serde(rename = "fileID")]
+    pub file_id: u32,
     pub required: bool,
 }
-
 #[derive(Deserialize)]
 #[allow(unused)]
-pub struct CurseGetModResponse {
-    pub data: CurseMod,
-}
-#[derive(Deserialize)]
-#[allow(unused)]
-#[serde(rename = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct CurseMod {
-    pub id: i32,
-    pub game_id: i32,
+    pub id: u32,
+    pub game_id: u32,
     pub name: String,
     pub slug: String,
     pub links: CurseModLinks,
@@ -91,17 +58,19 @@ pub struct CurseMod {
     pub status: CurseModStatus,
     pub download_count: i64,
     pub is_featured: bool,
-    pub primary_category_id: i32,
+    pub primary_category_id: u32,
     pub categories: Vec<CurseCategory>,
-    pub class_id: Option<i32>,
+    pub class_id: Option<u32>,
     pub authors: Vec<CurseModAuthor>,
     pub logo: CurseModAsset,
     pub screenshots: CurseModAsset,
-    pub main_file_id: i32,
+    pub main_file_id: u32,
+    pub latest_files: Vec<CurseFile>,
+    pub latest_file_indexes: Vec<CurseFileIndex>,
 }
 #[derive(Deserialize)]
 #[allow(unused)]
-#[serde(rename = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct CurseModLinks {
     pub website_url: String,
     pub wiki_url: String,
@@ -126,7 +95,7 @@ impl<'de> Deserialize<'de> for CurseModStatus {
     where
         D: serde::Deserializer<'de>,
     {
-        match i32::deserialize(deserializer) {
+        match u32::deserialize(deserializer) {
             Ok(i) => {
                 if i <= 10 && i >= 1 {
                     Ok([
@@ -139,11 +108,12 @@ impl<'de> Deserialize<'de> for CurseModStatus {
                         Self::Inactive,
                         Self::Abandoned,
                         Self::Deleted,
+                        Self::UnderReview,
                     ][i as usize - 1]
                         .clone())
                 } else {
                     Err(serde::de::Error::invalid_value(
-                        serde::de::Unexpected::Signed(i as i64),
+                        serde::de::Unexpected::Unsigned(i as u64),
                         &"a number [1,10]",
                     ))
                 }
@@ -155,30 +125,30 @@ impl<'de> Deserialize<'de> for CurseModStatus {
 #[derive(Deserialize)]
 #[allow(unused)]
 pub struct CurseCategory {
-    pub id: i32,
-    pub game_id: i32,
+    pub id: u32,
+    pub game_id: u32,
     pub name: String,
     pub slug: String,
     pub url: String,
     pub icon_url: String,
     pub date_modified: String,
     pub is_class: Option<bool>,
-    pub class_id: Option<i32>,
-    pub parent_category_id: Option<i32>,
-    pub display_index: Option<i32>,
+    pub class_id: Option<u32>,
+    pub parent_category_id: Option<u32>,
+    pub display_index: Option<u32>,
 }
 #[derive(Deserialize)]
 #[allow(unused)]
 pub struct CurseModAuthor {
-    pub id: i32,
+    pub id: u32,
     pub name: String,
     pub url: String,
 }
 #[derive(Deserialize)]
 #[allow(unused)]
 pub struct CurseModAsset {
-    pub id: i32,
-    pub mod_id: i32,
+    pub id: u32,
+    pub mod_id: u32,
     pub title: String,
     pub description: String,
     pub thumbnail_url: String,
@@ -186,11 +156,11 @@ pub struct CurseModAsset {
 }
 #[derive(Deserialize)]
 #[allow(unused)]
-#[serde(rename = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct CurseFile {
-    pub id: i32,
-    pub game_id: i32,
-    pub mod_id: i32,
+    pub id: u32,
+    pub game_id: u32,
+    pub mod_id: u32,
     pub is_available: bool,
     pub display_name: String,
     pub file_name: String,
@@ -200,20 +170,19 @@ pub struct CurseFile {
     pub file_date: String,
     pub file_length: i64,
     pub download_count: i64,
-    pub file_size_on_disk: i64,
-    pub download_url: String,
+    pub file_size_on_disk: Option<i64>,
+    pub download_url: Option<String>,
     pub game_versions: Vec<String>,
     pub sortable_game_versions: Vec<CurseSortableGameVersions>,
     pub dependencies: Vec<CurseFileDependency>,
-    pub expose_as_alternative:Option<bool>,
-    pub parent_project_file_id:Option<i32>,
-    pub alternate_file_id:Option<i32>,
-    pub is_server_pack:Option<bool>,
-    pub is_early_access_content:Option<bool>,
-    pub early_access_end_date:Option<String>,
-    pub file_fingerprint:i64,
-    pub modules:Vec<CurseFileModule>
-    //TODO FileIndex onward
+    pub expose_as_alternative: Option<bool>,
+    pub parent_project_file_id: Option<u32>,
+    pub alternate_file_id: Option<u32>,
+    pub is_server_pack: Option<bool>,
+    pub is_early_access_content: Option<bool>,
+    pub early_access_end_date: Option<String>,
+    pub file_fingerprint: i64,
+    pub modules: Vec<CurseFileModule>,
 }
 #[derive(Clone)]
 pub enum CurseFileReleaseType {
@@ -226,13 +195,13 @@ impl<'de> Deserialize<'de> for CurseFileReleaseType {
     where
         D: serde::Deserializer<'de>,
     {
-        match i32::deserialize(deserializer) {
+        match u32::deserialize(deserializer) {
             Ok(i) => {
                 if i <= 3 && i >= 1 {
                     Ok([Self::Release, Self::Beta, Self::Alpha][i as usize - 1].clone())
                 } else {
                     Err(serde::de::Error::invalid_value(
-                        serde::de::Unexpected::Signed(i as i64),
+                        serde::de::Unexpected::Unsigned(i as u64),
                         &"a number [1,3]",
                     ))
                 }
@@ -272,7 +241,7 @@ impl<'de> Deserialize<'de> for CurseFileStatus {
     where
         D: serde::Deserializer<'de>,
     {
-        match i32::deserialize(deserializer) {
+        match u32::deserialize(deserializer) {
             Ok(i) => {
                 if i <= 23 && i >= 1 {
                     Ok([
@@ -303,7 +272,7 @@ impl<'de> Deserialize<'de> for CurseFileStatus {
                         .clone())
                 } else {
                     Err(serde::de::Error::invalid_value(
-                        serde::de::Unexpected::Signed(i as i64),
+                        serde::de::Unexpected::Unsigned(i as u64),
                         &"a number [1,23]",
                     ))
                 }
@@ -318,7 +287,7 @@ pub struct CurseFileHash {
     pub value: String,
     pub algo: CurseHashAlgo,
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum CurseHashAlgo {
     Sha1,
     Md5,
@@ -328,13 +297,13 @@ impl<'de> Deserialize<'de> for CurseHashAlgo {
     where
         D: serde::Deserializer<'de>,
     {
-        match i32::deserialize(deserializer) {
+        match u32::deserialize(deserializer) {
             Ok(i) => {
                 if i >= 1 && i <= 2 {
                     Ok([Self::Sha1, Self::Md5][i as usize - 1].clone())
                 } else {
                     Err(serde::de::Error::invalid_value(
-                        serde::de::Unexpected::Signed(i as i64),
+                        serde::de::Unexpected::Unsigned(i as u64),
                         &"a number [1,2]",
                     ))
                 }
@@ -345,19 +314,19 @@ impl<'de> Deserialize<'de> for CurseHashAlgo {
 }
 #[derive(Deserialize)]
 #[allow(unused)]
-#[serde(rename = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct CurseSortableGameVersions {
     pub game_version_name: String,
     pub game_version_padded: String,
     pub game_version: String,
     pub game_version_release_date: String,
-    pub game_version_type_id: Option<i32>,
+    pub game_version_type_id: Option<u32>,
 }
 #[derive(Deserialize)]
 #[allow(unused)]
-#[serde(rename = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct CurseFileDependency {
-    pub mod_id: i32,
+    pub mod_id: u32,
     pub relation_type: CurseFileRelationType,
 }
 #[derive(Clone)]
@@ -374,7 +343,7 @@ impl<'de> Deserialize<'de> for CurseFileRelationType {
     where
         D: serde::Deserializer<'de>,
     {
-        match i32::deserialize(deserializer) {
+        match u32::deserialize(deserializer) {
             Ok(i) => {
                 if i <= 6 && i >= 1 {
                     Ok([
@@ -388,7 +357,7 @@ impl<'de> Deserialize<'de> for CurseFileRelationType {
                         .clone())
                 } else {
                     Err(serde::de::Error::invalid_value(
-                        serde::de::Unexpected::Signed(i as i64),
+                        serde::de::Unexpected::Unsigned(i as u64),
                         &"a number [1,6]",
                     ))
                 }
@@ -400,6 +369,56 @@ impl<'de> Deserialize<'de> for CurseFileRelationType {
 #[derive(Deserialize)]
 #[allow(unused)]
 pub struct CurseFileModule {
-    pub name:String,
-    pub fingerprint:i64
+    pub name: String,
+    pub fingerprint: i64,
+}
+#[derive(Deserialize)]
+#[allow(unused)]
+#[serde(rename_all = "camelCase")]
+pub struct CurseFileIndex {
+    pub game_version: String,
+    pub file_id: u32,
+    pub filename: String,
+    pub release_type: CurseFileReleaseType,
+    pub game_version_type_id: Option<u32>,
+    pub mod_loader: CurseModLoaderType,
+}
+#[derive(Clone)]
+pub enum CurseModLoaderType {
+    Any,
+    Forge,
+    Cauldron,
+    LiteLoader,
+    Fabric,
+    Quilt,
+    NeoForge,
+}
+impl<'de> Deserialize<'de> for CurseModLoaderType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        match u32::deserialize(deserializer) {
+            Ok(i) => {
+                if i <= 6 {
+                    Ok([
+                        Self::Any,
+                        Self::Forge,
+                        Self::Cauldron,
+                        Self::LiteLoader,
+                        Self::Fabric,
+                        Self::Quilt,
+                        Self::NeoForge,
+                    ][i as usize]
+                        .clone())
+                } else {
+                    Err(serde::de::Error::invalid_value(
+                        serde::de::Unexpected::Unsigned(i as u64),
+                        &"a number [0,6]",
+                    ))
+                }
+            }
+            Err(e) => Err(e),
+        }
+    }
 }
