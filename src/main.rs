@@ -1,35 +1,31 @@
 mod platforms;
 
 use std::{
-    collections::BTreeMap,
-    fs::File,
-    io::{self, Read, Write},
-    sync::Arc,
-};
-
-use crate::platforms::mr::{
-    ModrinthEnvironmentRequirement, ModrinthHashInfo, ModrinthJarMeta, ModrinthMeta,
+    collections::BTreeMap, fs::File, io::{self, Read, Write}, sync::Arc
 };
 use crate::platforms::{
-    curse::{CurseGetModFileResponse, CurseHashAlgo, CurseforgeMeta},
-    mr::ModrinthGetVersionFromHashResponse,
+    curse::{CurseGetModFileResponse, CurseHashAlgo, CurseforgeMeta, CurseFile, CurseGetModResponse},
+    mr::{
+        ModrinthGetVersionFromHashResponse, ModrinthEnvironmentRequirement, ModrinthHashInfo, ModrinthJarMeta, ModrinthMeta,
+    },
 };
 use reqwest::header::{HeaderMap, HeaderValue};
+use sha1::{Digest, Sha1};
 use tokio::{
     sync::{Mutex, Semaphore},
     task::JoinSet,
 };
 use tracing::{Instrument, Level, event, span};
 use zip::{
-    read::ZipFile,
-    write::SimpleFileOptions,
+    read::ZipFile, write::SimpleFileOptions
 };
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
+    color_eyre::install();
     dotenv::dotenv()?;
     tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
+        .with_max_level(Level::DEBUG)
         .init();
     let mut args = std::env::args();
     args.next(); //HACK skip the exe you dumb motherfucker i hate you (me)
@@ -55,7 +51,7 @@ async fn main() -> color_eyre::Result<()> {
     let mut archive = zip::ZipArchive::new(i_file)?;
     let output = Arc::new(Mutex::new(zip::ZipWriter::new(o_file)));
 
-    let sem_max_concurrent_downloads = Arc::new(Semaphore::new(3));
+    let sem_max_concurrent_downloads = Arc::new(Semaphore::new(1));
     let client = Arc::new(
         reqwest::Client::builder()
             .user_agent("Crinfarr/Multipack/indev (dev@crinfarr.io)")
@@ -64,11 +60,11 @@ async fn main() -> color_eyre::Result<()> {
                 let c_key =
                     std::env::var("CURSE_API_KEY").unwrap_or("NO_KEY_SPECIFIED".to_string());
                 hm.append("x-api-key", HeaderValue::from_str(&c_key).unwrap());
-                hm.append("Accept", HeaderValue::from_str("application/json").unwrap());
                 return hm;
             })())
             .build()?,
     );
+    let deps_included:Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::default()));
 
     for idx in 0..archive.len() {
         let file = archive.name_for_index(idx).ok_or(io::Error::new(
@@ -81,20 +77,22 @@ async fn main() -> color_eyre::Result<()> {
                 let _mr_config =
                     serde_json::from_reader::<ZipFile<File>, ModrinthMeta>(archive.by_index(idx)?)?;
                 //TODO MODRINTH METADATA TRANSLATION
+                todo!("Modrinth -> CurseForge translation is not yet implemented because curse hates you");
             }
             "manifest.json" => {
                 event!(Level::INFO, "Detected curseforge modpack");
-                let curse_config = serde_json::from_reader::<ZipFile<File>, CurseforgeMeta>(
+                let curse_config = Arc::new(serde_json::from_reader::<ZipFile<File>, CurseforgeMeta>(
                     archive.by_index(idx)?,
-                )?;
+                )?);
                 let mut handle_set: JoinSet<()> = JoinSet::new();
                 let d_stack: Arc<Mutex<Vec<ModrinthJarMeta>>> = Arc::new(Mutex::new(Vec::new()));
-                for file_stats in curse_config.files {
+                for file_stats in &curse_config.files {
                     let sem_dl = sem_max_concurrent_downloads.clone();
                     let client_ref = client.clone();
                     let fsr = file_stats.clone();
                     let stack_ref = d_stack.clone();
                     let ofile_handle = output.clone();
+                    let deps_ref = deps_included.clone();
                     handle_set.spawn(
                     async move {
                         event!(Level::DEBUG, "Waiting on semaphore");
@@ -142,6 +140,85 @@ async fn main() -> color_eyre::Result<()> {
                                 return;
                             }
                         };
+                        event!(Level::INFO, "Resolving dependencies for {}", file_info.data.display_name);
+                        for dep in file_info.data.dependencies {
+                            let res_s = match client_ref.get(format!("https://api.curseforge.com/v1/mods/{}/", dep.mod_id)).send().await {
+                                Ok(s) => match s.text().await {
+                                    Ok(s) => s,
+                                    Err(e) => {
+                                        event!(Level::ERROR, "Failed to decode text: {}", e);
+                                        return;
+                                    }
+                                },
+                                Err(e) => {
+                                    event!(Level::ERROR, "Failed to fetch requirement: {}", e);
+                                    return;
+                                }
+                            };
+                            let modinfo:CurseGetModResponse = match serde_json::from_str(&res_s) {
+                                Ok(o) => o,
+                                Err(e) => {
+                                    event!(Level::ERROR, "Failed to deserialize: {}", e);
+                                    return;
+                                }
+                            };
+                            for file in modinfo.data.latest_files {
+                                match file.hashes.iter().find(|h| h.algo == CurseHashAlgo::Sha1) {
+                                    Some(hash) => {
+                                        if deps_ref.lock().await.contains(&hash.value) {
+                                            continue;
+                                        } else {
+                                            let modrinth_lookup = match client_ref.get(format!("https://api.modrinth.com/v2/version_file/{}?algorithm=sha1", hash.value)).send().await {
+                                                Ok(v) => v,
+                                                Err(e) => {
+                                                    event!(Level::ERROR, "Failed to lookup hash: {}", e);
+                                                    return;
+                                                }
+                                            };
+                                            if !modrinth_lookup.status().is_success() {
+                                                //patch from curse
+                                                event!(Level::WARN, "Mod {} is not available on modrinth, patching directly!", file.display_name);
+                                                event!(Level::DEBUG, "Downloading {}", modinfo.data.name);
+                                                let file_data = modinfo.data.latest_files.clone().iter().find(|file| file.game_versions.contains(&"1.20.1".to_string())).clone();
+                                            } else {
+                                                //add modrinth dep
+                                                let mr_text = modrinth_lookup.text().await;
+                                                if let Err(e) =  mr_text{
+                                                    event!(Level::ERROR, "failed to get text from modrinth response, {}", e);
+                                                    return;
+                                                }
+                                                match serde_json::from_str::<ModrinthGetVersionFromHashResponse>(&mr_text.unwrap()) {
+                                                    Ok(obj) => {
+                                                        deps_ref.lock().await.push(obj.files[0].hashes.sha1.clone());
+                                                        stack_ref.lock().await.push(ModrinthJarMeta {
+                                                            path: format!("mods/{}", obj.files[0].filename),
+                                                            hashes: ModrinthHashInfo {
+                                                                sha512: obj.files[0].hashes.sha512.clone(),
+                                                                sha1: obj.files[0].hashes.sha1.clone()
+                                                            },
+                                                            env: ModrinthEnvironmentRequirement {
+                                                                client: "required".to_string(),
+                                                                server: "required".to_string()
+                                                            },
+                                                            downloads: vec![obj.files[0].url.clone()],
+                                                            file_size: obj.files[0].size
+                                                        });
+                                                    },
+                                                    Err(e) => {
+                                                        event!(Level::ERROR, "Failed to deserialize: {}", e);
+                                                        return;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    None => {
+                                        event!(Level::ERROR, "Failed to get hash for dependency!");
+                                        return;
+                                    }
+                                }
+                            }
+                        }
                         //find SHA1
                         let file_hash = file_info
                             .data
@@ -162,7 +239,10 @@ async fn main() -> color_eyre::Result<()> {
                                     event!(Level::WARN, "Mod {} is not available on modrinth, patching directly!", file_info.data.display_name);
                                     event!(Level::DEBUG, "Downloading {}", file_info.data.display_name);
                                     let dl_url = match file_info.data.download_url {
-                                        Some(str) => str,
+                                        Some(str) => {
+                                            event!(Level::DEBUG, "Downloading {} from {}", file_info.data.display_name, str);
+                                            str
+                                        },
                                         None => {
                                             event!(Level::ERROR, "No download url available for {}", file_info.data.display_name);
                                             return;
@@ -175,6 +255,7 @@ async fn main() -> color_eyre::Result<()> {
                                             return;
                                         }
                                     };
+                                    drop(permit);
                                     if !req.status().is_success() {
                                         event!(Level::ERROR, "Failed to download {}: Error {}", file_info.data.display_name, req.status());
                                         return;
@@ -186,10 +267,33 @@ async fn main() -> color_eyre::Result<()> {
                                             return;
                                         }
                                     };
+                                    //hash check
+                                    let mut hasher = Sha1::new();
+                                    hasher.update(&content);
+                                    assert_eq!(base16ct::lower::encode_string(&hasher.finalize()), hashdata.value);
+
                                     event!(Level::DEBUG, "Waiting for output zip lock");
+                                    event!(Level::TRACE, "zip byte len: {}", content.len());
                                     let mut o_lock = ofile_handle.lock().await;
                                     let _ = o_lock.start_file(format!("overrides/mods/{}", file_info.data.file_name), SimpleFileOptions::default());
-                                    let _ = o_lock.write(&content);
+                                    let mut pos:usize = 0;
+                                    while pos <= content.len() as usize {
+                                        match o_lock.write(&content[pos as usize..]) {
+                                            Ok(len) => {
+                                                if len == 0 {
+                                                    event!(Level::TRACE, "Out of data to write");
+                                                    break;
+                                                }
+                                                event!(Level::TRACE, "Writing from {}", pos);
+                                                pos += len;
+                                            },
+                                            Err(e) => {
+                                                event!(Level::ERROR, "Failed to write zip: err {}", e);
+                                                return;
+                                            }
+                                        }
+                                    }
+                                    
                                     return;
                                 }
                                 let r_body = match mr_resp.text().await {
@@ -233,7 +337,7 @@ async fn main() -> color_eyre::Result<()> {
                         Level::INFO,
                         "Download Thread",
                         File = format!("{}/{}", file_stats.project_id, file_stats.file_id)
-                    )),
+                    ))
                 );
                 }
                 event!(Level::DEBUG, "All threads spawned");
@@ -256,13 +360,13 @@ async fn main() -> color_eyre::Result<()> {
                                     .collect();
                                 depmap.insert(loader_spec[0].clone(), loader_spec[1].clone());
                             });
-                        depmap.insert("minecraft".to_string(), curse_config.minecraft.version);
+                        depmap.insert("minecraft".to_string(), curse_config.minecraft.version.clone());
                         return depmap;
                     })(),
                     files: mod_conf,
                     format_version: 1,
                     game: "minecraft".to_string(),
-                    name: curse_config.name,
+                    name: curse_config.name.clone(),
                     summary: "".to_string(),
                     version_id: "1.0.0".to_string(),
                 };
@@ -275,7 +379,22 @@ async fn main() -> color_eyre::Result<()> {
                 let mut o_lock = output.lock().await;
                 o_lock.start_file(f, SimpleFileOptions::default())?;
                 let f_bytes: Vec<u8> = archive.by_index(idx)?.bytes().map(|b| b.unwrap()).collect();
-                o_lock.write(&f_bytes)?;
+                let mut pos:usize = 0;
+                while pos <= f_bytes.len() as usize {
+                    match o_lock.write(&f_bytes[pos as usize..]) {
+                        Ok(len) => {
+                            if len == 0 {
+                                event!(Level::TRACE, "Out of data to write");
+                                break;
+                            }
+                            event!(Level::TRACE, "Writing from {}", pos);
+                            pos += len;
+                        },
+                        Err(e) => {
+                            event!(Level::ERROR, "Failed to write zip: err {}", e);
+                        }
+                    }
+                }
             }
         }
     }

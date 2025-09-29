@@ -13,7 +13,7 @@ pub struct CurseforgeMeta {
     pub files: Vec<CurseFileDescription>,
     pub overrides: String,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[allow(unused)]
 pub struct CurseGetModResponse {
     pub data: CurseMod,
@@ -45,7 +45,7 @@ pub struct CurseFileDescription {
     pub file_id: u32,
     pub required: bool,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[allow(unused)]
 #[serde(rename_all = "camelCase")]
 pub struct CurseMod {
@@ -67,8 +67,17 @@ pub struct CurseMod {
     pub main_file_id: u32,
     pub latest_files: Vec<CurseFile>,
     pub latest_file_indexes: Vec<CurseFileIndex>,
+    pub latest_early_access_files_indexes:Vec<CurseFileIndex>,
+    pub date_created:String,
+    pub date_modified:String,
+    pub date_released:String,
+    pub allow_mod_distribution:Option<bool>,
+    pub game_popularity_link:u32,
+    pub is_available:bool,
+    pub thumbs_up_count:bool,
+    pub rating:Option<f64>,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[allow(unused)]
 #[serde(rename_all = "camelCase")]
 pub struct CurseModLinks {
@@ -122,7 +131,7 @@ impl<'de> Deserialize<'de> for CurseModStatus {
         }
     }
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[allow(unused)]
 pub struct CurseCategory {
     pub id: u32,
@@ -137,14 +146,14 @@ pub struct CurseCategory {
     pub parent_category_id: Option<u32>,
     pub display_index: Option<u32>,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[allow(unused)]
 pub struct CurseModAuthor {
     pub id: u32,
     pub name: String,
     pub url: String,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[allow(unused)]
 pub struct CurseModAsset {
     pub id: u32,
@@ -154,7 +163,7 @@ pub struct CurseModAsset {
     pub thumbnail_url: String,
     pub url: String,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[allow(unused)]
 #[serde(rename_all = "camelCase")]
 pub struct CurseFile {
@@ -281,7 +290,7 @@ impl<'de> Deserialize<'de> for CurseFileStatus {
         }
     }
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[allow(unused)]
 pub struct CurseFileHash {
     pub value: String,
@@ -312,7 +321,7 @@ impl<'de> Deserialize<'de> for CurseHashAlgo {
         }
     }
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[allow(unused)]
 #[serde(rename_all = "camelCase")]
 pub struct CurseSortableGameVersions {
@@ -322,7 +331,7 @@ pub struct CurseSortableGameVersions {
     pub game_version_release_date: String,
     pub game_version_type_id: Option<u32>,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[allow(unused)]
 #[serde(rename_all = "camelCase")]
 pub struct CurseFileDependency {
@@ -366,13 +375,13 @@ impl<'de> Deserialize<'de> for CurseFileRelationType {
         }
     }
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[allow(unused)]
 pub struct CurseFileModule {
     pub name: String,
     pub fingerprint: i64,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[allow(unused)]
 #[serde(rename_all = "camelCase")]
 pub struct CurseFileIndex {
