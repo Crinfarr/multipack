@@ -1,12 +1,12 @@
-use color_eyre::Result;
+use color_eyre::{Result, eyre::Context};
 use std::{
     fs::File,
-    io::{Bytes, Read, Write},
+    io::{Read, Write},
     sync::Arc,
 };
-use tokio::{sync::Mutex, task::{JoinHandle, JoinSet}};
+use tokio::{sync::Mutex, task::JoinSet, time::Instant};
 use tracing::{Instrument, Level, event, span};
-use zip::{read::ZipFile, write::SimpleFileOptions, ZipWriter};
+use zip::{ZipWriter, read::ZipFile, write::SimpleFileOptions};
 
 mod mod_data;
 mod platforms;
@@ -20,8 +20,8 @@ enum OutputFormat {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    color_eyre::install()?;
-    dotenv::dotenv()?;
+    color_eyre::install().wrap_err("Err while initializing color_eyre")?;
+    dotenv::dotenv().wrap_err("Error while parsing .env")?;
     tracing_subscriber::fmt()
         .with_max_level(
             match std::env::var("LOGLEVEL")
@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
             },
         )
         .init();
-
+    let st = Instant::now();
     let write_type = match std::env::var("OUTPUT_FORMAT")
         .unwrap_or("UNSPECIFIED".to_string())
         .as_str()
@@ -62,7 +62,10 @@ async fn main() -> Result<()> {
                 zip::ZipArchive::new(File::open(s).unwrap()).unwrap(),
             )
         })
-        .unwrap();
+        .ok_or(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Failed to open input",
+        ))?;
 
     let out_writer = match write_type {
         OutputFormat::CURSEFORGE => {
@@ -71,47 +74,62 @@ async fn main() -> Result<()> {
         OutputFormat::TECHNICPACK => {
             todo!("Technic is not yet supported");
         }
-        OutputFormat::MODRINTH => {
-            Arc::new(Mutex::new(ZipWriter::new(File::create("pack.mrpack")?)))
-        }
+        OutputFormat::MODRINTH => Arc::new(Mutex::new(ZipWriter::new(
+            File::create("pack.mrpack").wrap_err("Err while attempting to create output zip")?,
+        ))),
         OutputFormat::OTHER(s) => todo!("Format {} not supported", s),
     };
+    let mut handles = JoinSet::new();
 
     for index in 0..pack_reader.len() {
-        let file = pack_reader.by_index(index)?;
+        let file = pack_reader
+            .by_index(index)
+            .wrap_err("Err while reading input zip")?;
         if file.is_dir() {
             out_writer
                 .lock()
                 .await
-                .add_directory(file.name(), SimpleFileOptions::default())?;
+                .add_directory(file.name(), SimpleFileOptions::default())
+                .wrap_err("Err while copying directory")?;
             continue;
         }
         let f_name = file.name().to_string();
-        let content = file.bytes();
-        let mut handles = JoinSet::new();
         match f_name.as_str() {
-            "index.json" => {
-                let config = serde_json::from_reader::<File, platforms::curse::CurseforgeMeta>(content);
+            "manifest.json" => {
+                let file = serde_json::from_str::<platforms::curse::CurseforgeMeta>(
+                    &file.bytes()
+                        .map(|b| b.unwrap() as char)
+                        .collect::<String>(),
+                ).wrap_err("Err while loading curseforge manifest")?;
+                // let _config = serde_json::from_reader::<ZipFile<File>, platforms::curse::CurseforgeMeta>(file).wrap_err("Error while parsing metadata")?;
+                event!(Level::WARN, "CONFIG PARSING IS NYI");
+                continue;
             }
 
             other => {
                 let out_ref = out_writer.clone();
-                let filename  = other.to_string();
-                let f_content:Vec<u8> = content.map(|f| f.unwrap().clone()).collect();
+                let filename = other.to_string();
+                event!(Level::TRACE, "Vectorizing {}", filename);
+                let f_bytes: Vec<u8> = file.bytes().map(|f| f.unwrap().clone()).collect();
+                event!(Level::DEBUG, "Spawning write thread for {}", filename);
                 handles.spawn(
                     async move {
                         event!(Level::DEBUG, "Waiting on write mutex");
                         let mut output = out_ref.lock().await;
+                        event!(Level::TRACE, "Got permit");
                         let mut start_at: u64 = 0;
-                        output.start_file(filename, SimpleFileOptions::default()).unwrap();
+                        output
+                            .start_file(filename, SimpleFileOptions::default())
+                            .unwrap();
                         loop {
-                            let written = output.write(&f_content[(start_at as usize)..]).unwrap();
+                            let written = output.write(&f_bytes[(start_at as usize)..]).unwrap();
                             if written == 0 {
                                 break;
                             } else {
                                 start_at += written as u64;
                             }
                         }
+                        event!(Level::DEBUG, "Wrote {:?}b", start_at);
                     }
                     .instrument(span!(
                         Level::INFO,
@@ -121,8 +139,15 @@ async fn main() -> Result<()> {
                 );
             }
         }
-        handles.join_all().await;
     }
 
+    event!(Level::INFO, "Waiting for writer threads");
+    handles.join_all().await;
+
+    event!(
+        Level::INFO,
+        "Done in {:?}",
+        Instant::now().duration_since(st)
+    );
     Ok(())
 }
