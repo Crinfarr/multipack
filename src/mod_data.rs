@@ -1,11 +1,11 @@
-use std::{default, pin::Pin, ptr::null, sync::Arc};
+use std::sync::Arc;
 
-use crate::platforms::{curse::CurseFileDescription, mr::ModrinthJarDescription};
+use crate::platforms::{curse::CurseFileDescription, mr::ModrinthFileInfo};
 
 #[derive(Default)]
 enum WrappedModInfo {
     CurseMod(crate::platforms::curse::CurseFileDescription),
-    ModrinthMod(crate::platforms::mr::ModrinthJarDescription),
+    ModrinthMod(crate::platforms::mr::ModrinthFileInfo),
     #[default]
     Undefined
 }
@@ -20,7 +20,7 @@ impl Default for LookupClient {
 }
 
 #[derive(Debug, Clone)]
-struct FetchError<'a> {
+pub struct FetchError<'a> {
     message:&'static str,
     wrapped:Option<&'a Box<dyn std::error::Error>>,
 }
@@ -42,7 +42,7 @@ impl ModInfo<'_> {
             }
             WrappedModInfo::Undefined => self.sha1 = None,
         }
-        return self.sha1.map_or(Err(FetchError {message: "Failed to resolve sha1", wrapped: None}), |s| Ok(s.as_str()));
+        return self.sha1.map_or(Err(FetchError {message: "Failed to resolve sha1", wrapped: None}), |s| Ok(s));
     }
     /**
      * Overwrites [self] with a reference to a global client
@@ -60,8 +60,8 @@ impl From<CurseFileDescription> for ModInfo<'_> {
         }
     }
 }
-impl From<ModrinthJarDescription> for ModInfo<'_> {
-    fn from(value: ModrinthJarDescription) -> Self {
+impl From<ModrinthFileInfo> for ModInfo<'_> {
+    fn from(value: ModrinthFileInfo) -> Self {
         Self {
             config: WrappedModInfo::ModrinthMod(value),
             ..Default::default()
