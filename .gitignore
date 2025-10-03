@@ -16,3 +16,4 @@ Cargo.lock
 
 # prod files
 .env
+pack.mrpack
