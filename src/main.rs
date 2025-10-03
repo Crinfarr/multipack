@@ -6,7 +6,7 @@ use std::{
 };
 use tokio::{sync::Mutex, task::JoinSet, time::Instant};
 use tracing::{Instrument, Level, event, span};
-use zip::{ZipWriter, read::ZipFile, write::SimpleFileOptions};
+use zip::{ZipWriter, write::SimpleFileOptions};
 
 mod mod_data;
 mod platforms;
@@ -50,7 +50,7 @@ async fn main() -> Result<()> {
 
     let mut args = std::env::args();
     args.next(); //skip executable
-    let (pack_path, pack_ext, mut pack_reader) = args
+    let (_pack_path, _pack_ext, mut pack_reader) = args
         .next()
         .map(|s| {
             let mut splits: Vec<&str> = s.split(".").collect();
