@@ -112,10 +112,10 @@ async fn main() -> Result<()> {
                 let filename = other.to_string();
                 event!(Level::TRACE, "Vectorizing {}", filename);
                 let f_bytes: Vec<u8> = file.bytes().map(|f| f.unwrap().clone()).collect();
-                event!(Level::DEBUG, "Spawning write thread for {}", filename);
+                event!(Level::TRACE, "Spawning write thread for {}", filename);
                 handles.spawn(
                     async move {
-                        event!(Level::DEBUG, "Waiting on write mutex");
+                        event!(Level::TRACE, "Waiting on write mutex");
                         let mut output = out_ref.lock().await;
                         event!(Level::TRACE, "Got permit");
                         let mut start_at: u64 = 0;
@@ -130,10 +130,10 @@ async fn main() -> Result<()> {
                                 start_at += written as u64;
                             }
                         }
-                        event!(Level::DEBUG, "Wrote {:?}b", start_at);
+                        event!(Level::TRACE, "Wrote {:?}b", start_at);
                     }
                     .instrument(span!(
-                        Level::INFO,
+                        Level::DEBUG,
                         "Writer Thread",
                         file = other
                     )),
@@ -142,7 +142,7 @@ async fn main() -> Result<()> {
         }
     }
 
-    event!(Level::INFO, "Waiting for writer threads");
+    event!(Level::INFO, "All writer threads spawned");
     handles.join_all().await;
 
     event!(
