@@ -96,13 +96,14 @@ async fn main() -> Result<()> {
         let f_name = file.name().to_string();
         match f_name.as_str() {
             "manifest.json" => {
-                let file = serde_json::from_str::<platforms::curse::CurseforgeMeta>(
+                let file = serde_json::from_str::<platforms::curse::PackMeta>(
                     &file.bytes()
                         .map(|b| b.unwrap() as char)
                         .collect::<String>(),
                 ).wrap_err("Err while loading curseforge manifest")?;
                 // let _config = serde_json::from_reader::<ZipFile<File>, platforms::curse::CurseforgeMeta>(file).wrap_err("Error while parsing metadata")?;
                 event!(Level::WARN, "CONFIG PARSING IS NYI");
+                event!(Level::DEBUG, "{:#?}", file);
                 continue;
             }
 

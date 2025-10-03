@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use crate::platforms::{curse::CurseFileDescription, mr::ModrinthFileInfo};
+use crate::platforms::{curse::PackModDescription, mr::ModrinthFileInfo};
 
 #[derive(Default)]
 enum WrappedModInfo {
-    CurseMod(crate::platforms::curse::CurseFileDescription),
+    CurseMod(crate::platforms::curse::PackModDescription),
     ModrinthMod(crate::platforms::mr::ModrinthFileInfo),
     #[default]
     Undefined
@@ -52,8 +52,8 @@ impl ModInfo<'_> {
         return self;
     }
 }
-impl From<CurseFileDescription> for ModInfo<'_> {
-    fn from(value: CurseFileDescription) -> Self {
+impl From<PackModDescription> for ModInfo<'_> {
+    fn from(value: PackModDescription) -> Self {
         Self {
             config: WrappedModInfo::CurseMod(value),
             ..Default::default()
