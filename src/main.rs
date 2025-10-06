@@ -9,9 +9,7 @@ use tokio::{sync::Mutex, task::JoinSet, time::Instant};
 use tracing::{Instrument, Level, event, span};
 use zip::{ZipWriter, write::SimpleFileOptions};
 
-use crate::mod_data::{DepResolve, ModInfo};
-
-mod mod_data;
+use crate::platforms::mod_data::{DepResolve, ModInfo};
 mod platforms;
 
 enum OutputFormat {
@@ -121,11 +119,10 @@ async fn main() -> Result<()> {
                 )
                 .wrap_err("Err while loading curseforge manifest")?;
                 event!(Level::WARN, "CONFIG PARSING IS NYI");
-                let mut deps: Vec<mod_data::ModInfo> = Vec::default();
+                let mut mods: Vec<ModInfo<crate::platforms::curse::PackModDescription, crate::platforms::curse::APIFile>> = Vec::default();
                 for mod_desc in file.files {
-                    deps.push(ModInfo::from(mod_desc).with_shared_client(client.clone()));
+                    mods.push(ModInfo::from(mod_desc).with_shared_client(client.clone()));
                 }
-                deps.resolve_deps();
                 continue;
             }
 
