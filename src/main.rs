@@ -1,4 +1,5 @@
 use color_eyre::{Result, eyre::Context};
+use reqwest::header::{HeaderMap, HeaderValue};
 use std::{
     fs::File,
     io::{Read, Write},
@@ -7,6 +8,8 @@ use std::{
 use tokio::{sync::Mutex, task::JoinSet, time::Instant};
 use tracing::{Instrument, Level, event, span};
 use zip::{ZipWriter, write::SimpleFileOptions};
+
+use crate::mod_data::{DepResolve, ModInfo};
 
 mod mod_data;
 mod platforms;
@@ -37,6 +40,7 @@ async fn main() -> Result<()> {
             },
         )
         .init();
+
     let st = Instant::now();
     let write_type = match std::env::var("OUTPUT_FORMAT")
         .unwrap_or("UNSPECIFIED".to_string())
@@ -80,6 +84,22 @@ async fn main() -> Result<()> {
         OutputFormat::OTHER(s) => todo!("Format {} not supported", s),
     };
     let mut handles = JoinSet::new();
+    let client = reqwest::Client::builder()
+        .user_agent("crinfarr/multipak @indev (dev@crinfarr.io)")
+        .default_headers((|| {
+            let mut hm = HeaderMap::new();
+            hm.append(
+                "x-api-key",
+                HeaderValue::from_str(
+                    &std::env::var("CURSE_API_KEY").unwrap_or("NO_KEY_SPECIFIED".to_string()),
+                )
+                .unwrap(),
+            );
+
+            hm
+        })())
+        .build()
+        .wrap_err("Err while building network client")?;
 
     for index in 0..pack_reader.len() {
         let file = pack_reader
@@ -97,13 +117,15 @@ async fn main() -> Result<()> {
         match f_name.as_str() {
             "manifest.json" => {
                 let file = serde_json::from_str::<platforms::curse::PackMeta>(
-                    &file.bytes()
-                        .map(|b| b.unwrap() as char)
-                        .collect::<String>(),
-                ).wrap_err("Err while loading curseforge manifest")?;
-                // let _config = serde_json::from_reader::<ZipFile<File>, platforms::curse::CurseforgeMeta>(file).wrap_err("Error while parsing metadata")?;
+                    &file.bytes().map(|b| b.unwrap() as char).collect::<String>(),
+                )
+                .wrap_err("Err while loading curseforge manifest")?;
                 event!(Level::WARN, "CONFIG PARSING IS NYI");
-                event!(Level::DEBUG, "{:#?}", file);
+                let mut deps: Vec<mod_data::ModInfo> = Vec::default();
+                for mod_desc in file.files {
+                    deps.push(ModInfo::from(mod_desc).with_shared_client(client.clone()));
+                }
+                deps.resolve_deps();
                 continue;
             }
 
