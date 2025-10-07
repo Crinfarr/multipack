@@ -16,6 +16,7 @@ impl Error for FetchError {}
 pub struct ModInfo<T, U> {
     pub(super) config: T,
     pub(super) resolved_info: Option<U>,
+    pub deps: Option<Vec<DependencyInfo>>,
     pub sha1: Option<String>,
     pub file_name: Option<String>,
     pub(in crate::platforms::mod_data) client: reqwest::Client, //reqwest::Client already uses Arc internally for clones (i am brain damaged)
@@ -23,4 +24,9 @@ pub struct ModInfo<T, U> {
 }
 pub trait DepResolve {
     async fn resolve_deps(self) -> Self;
+}
+#[derive(Debug)]
+pub struct DependencyInfo {
+    curse_project_id: Option<u32>,
+    sha1: Option<String>,
 }

@@ -9,7 +9,7 @@ use tokio::{sync::Mutex, task::JoinSet, time::Instant};
 use tracing::{Instrument, Level, event, span};
 use zip::{ZipWriter, write::SimpleFileOptions};
 
-use crate::platforms::mod_data::{DepResolve, ModInfo};
+use crate::platforms::mod_data::ModInfo;
 mod platforms;
 
 enum OutputFormat {
@@ -66,7 +66,7 @@ async fn main() -> Result<()> {
         })
         .ok_or(std::io::Error::new(
             std::io::ErrorKind::Other,
-            "Failed to open input",
+            "Failed to open input {}",
         ))?;
 
     let out_writer = match write_type {
@@ -119,9 +119,21 @@ async fn main() -> Result<()> {
                 )
                 .wrap_err("Err while loading curseforge manifest")?;
                 event!(Level::WARN, "CONFIG PARSING IS NYI");
-                let mut mods: Vec<ModInfo<crate::platforms::curse::PackModDescription, crate::platforms::curse::APIFile>> = Vec::default();
+                let mut mods: Vec<
+                    ModInfo<
+                        crate::platforms::curse::PackModDescription,
+                        crate::platforms::curse::APIFile,
+                    >,
+                > = Vec::default();
                 for mod_desc in file.files {
-                    mods.push(ModInfo::from(mod_desc).with_shared_client(client.clone()));
+                    let mod_info: ModInfo<
+                        crate::platforms::curse::PackModDescription,
+                        crate::platforms::curse::APIFile,
+                    > = ModInfo::from(mod_desc).with_shared_client(client.clone());
+                    mods.push(mod_info);
+                }
+                for mut mod_info in mods {
+                    mod_info.resolve_remotes().await?;
                 }
                 continue;
             }

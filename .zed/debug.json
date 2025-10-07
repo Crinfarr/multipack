@@ -1,0 +1,29 @@
+// Project-local debug tasks
+//
+// For more documentation on how to configure debug tasks,
+// see: https://zed.dev/docs/debugger
+[
+  {
+    "adapter": "CodeLLDB",
+    "label": "Debug with curse input",
+    "build": {
+      "label": "Build for debug",
+      "command": "cargo",
+      "args": ["build", "--package", "multipack"],
+      "env": {
+        "RUSTC_TOOLCHAIN": "/home/crinfarr/.rustup/toolchains/stable-x86_64-unknown-linux-gnu"
+      },
+      "cwd": "/media/windows/Users/crinf/Documents/GitHub/multipack",
+      "use_new_terminal": false,
+      "allow_concurrent_runs": false,
+      "reveal": "always",
+      "reveal_target": "dock",
+      "hide": "never",
+      "shell": "system",
+      "show_summary": false,
+      "show_command": false
+    },
+    "args": ["-- ./pack.zip"],
+    "sourceLanguages": ["rust"]
+  }
+]

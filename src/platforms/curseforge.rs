@@ -283,7 +283,7 @@ pub struct FileDependency {
 /**
  * Way this [FileDependency] is related
  */
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum RelationType {
     EmbeddedLibrary,
     OptionalDependency,
