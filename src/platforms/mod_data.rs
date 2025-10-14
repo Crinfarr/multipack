@@ -12,7 +12,7 @@ impl Display for FetchError {
 }
 impl Error for FetchError {}
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ModInfo<T, U> {
     pub(super) config: T,
     pub(super) resolved_info: Option<U>,

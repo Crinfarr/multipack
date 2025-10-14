@@ -52,10 +52,25 @@ async fn main() -> Result<()> {
 
     let mut args = std::env::args();
     args.next(); //skip executable
-    let (_pack_path, _pack_ext, mut pack_reader) = args
-        .next()
-        .map(|s| {
-            let mut splits: Vec<&str> = s.split(".").collect();
+    let (_pack_path, _pack_ext, mut pack_reader) = match std::env::var("__DBG_FILE_PATH") {
+        Err(_) => args
+            .next()
+            .map(|s| {
+                let mut splits: Vec<&str> = s.split(".").collect();
+                let ext = splits.pop().unwrap();
+                let path = splits.join(".");
+                (
+                    path.to_string(),
+                    ext.to_string(),
+                    zip::ZipArchive::new(File::open(s).unwrap()).unwrap(),
+                )
+            })
+            .ok_or(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to open input {}",
+            ))?,
+        Ok(s) => {
+            let mut splits: Vec<&str> = s.split('.').collect();
             let ext = splits.pop().unwrap();
             let path = splits.join(".");
             (
@@ -63,11 +78,8 @@ async fn main() -> Result<()> {
                 ext.to_string(),
                 zip::ZipArchive::new(File::open(s).unwrap()).unwrap(),
             )
-        })
-        .ok_or(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Failed to open input {}",
-        ))?;
+        }
+    };
 
     let out_writer = match write_type {
         OutputFormat::CURSEFORGE => {
@@ -134,6 +146,7 @@ async fn main() -> Result<()> {
                 }
                 for mut mod_info in mods {
                     mod_info.resolve_remotes().await?;
+                    event!(Level::DEBUG, "{:#?}", mod_info);
                 }
                 continue;
             }

@@ -1,7 +1,6 @@
 use crate::ModInfo;
 use crate::platforms::curse::{APIFile, HashAlgo, PackModDescription, RelationType};
 use color_eyre::Result;
-use tracing::{Level, event, instrument};
 
 impl From<PackModDescription> for ModInfo<PackModDescription, APIFile> {
     fn from(value: PackModDescription) -> Self {
@@ -68,18 +67,5 @@ impl ModInfo<PackModDescription, APIFile> {
     pub fn with_shared_client(mut self, client: reqwest::Client) -> Self {
         self.client = client.clone();
         return self;
-    }
-}
-impl super::DepResolve for Vec<super::DependencyInfo> {
-    #[instrument("Dependency resolver")]
-    async fn resolve_deps(self) -> Self {
-        for dep in self {
-            if let Some(id) = dep.curse_project_id {
-                //TODO curse lookup
-            } else {
-                event!(Level::WARN, "Failed to resolve dependency");
-            }
-        }
-        Vec::default() //FIXME
     }
 }

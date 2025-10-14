@@ -172,7 +172,7 @@ pub struct AssetMeta {
 /**
  * Data about a file as retrieved from the curse API
  */
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 #[allow(unused)]
 #[serde(rename_all = "camelCase")]
 pub struct APIFile {
@@ -205,7 +205,7 @@ pub struct APIFile {
 /**
  * The release state (Alpha/beta or Release)
  */
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ReleaseType {
     Release,
     Beta,
@@ -214,7 +214,7 @@ pub enum ReleaseType {
 /**
  * Status of this file
  */
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum FileStatus {
     Processing,
     ChangesRequired,
@@ -243,7 +243,7 @@ pub enum FileStatus {
 /**
  * File hash w/ algorithm specifier
  */
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 #[allow(unused)]
 pub struct FileHashData {
     pub value: String,
@@ -252,7 +252,7 @@ pub struct FileHashData {
 /**
  * Hash algorithm of this [FileHashData]
  */
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum HashAlgo {
     Sha1,
     Md5,
@@ -260,7 +260,7 @@ pub enum HashAlgo {
 /**
  * Game version specs but easier to sort
  */
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 #[allow(unused)]
 #[serde(rename_all = "camelCase")]
 pub struct SortableGameVersion {
@@ -273,7 +273,7 @@ pub struct SortableGameVersion {
 /**
  * Dependencies of this [APIFile]
  */
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 #[allow(unused)]
 #[serde(rename_all = "camelCase")]
 pub struct FileDependency {
@@ -283,7 +283,7 @@ pub struct FileDependency {
 /**
  * Way this [FileDependency] is related
  */
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum RelationType {
     EmbeddedLibrary,
     OptionalDependency,
@@ -295,7 +295,7 @@ pub enum RelationType {
 /**
  * Curse module related to this file
  */
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 #[allow(unused)]
 pub struct Module {
     pub name: String,
