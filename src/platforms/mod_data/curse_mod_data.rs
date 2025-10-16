@@ -1,7 +1,8 @@
-
 use crate::ModInfo;
-use crate::platforms::curse::{APIFile, HashAlgo, PackModDescription, RelationType};
-use color_eyre::{eyre, Result};
+use crate::platforms::curse::{
+    APIFile, HashAlgo, PackModDescription, RelationType, SortableGameVersion,
+};
+use color_eyre::{Result, eyre};
 
 impl From<PackModDescription> for ModInfo<PackModDescription, APIFile, CurseDependency> {
     fn from(value: PackModDescription) -> Self {
@@ -69,15 +70,20 @@ impl ModInfo<PackModDescription, APIFile, CurseDependency> {
     pub async fn resolve(&mut self) -> Result<()> {
         let d_arr = match &self.deps {
             None => {
-                    tracing::event!(tracing::Level::DEBUG, "No dependencies to fetch");
-                    &vec![]
-                },
-            Some(d) => d
+                tracing::event!(tracing::Level::DEBUG, "No dependencies to fetch");
+                &vec![]
+            }
+            Some(d) => d,
         };
-        let mut dep_hashes:Vec<String> = vec![];
-        for dep in d_arr {
-            // self.client.get("https://api.curseforge.com/v1/mods/{}/files?gameVersion={}&modLoaderType={}&gameVersionTypeID={}")
-        }
+        let mut dep_hashes: Vec<String> = vec![];
+        let (svn, curse_ver_id) =
+            (|ver: &SortableGameVersion| -> (String, u32) {
+                (
+                    ver.game_version.clone(),
+                    ver.game_version_type_id.unwrap().clone(),
+                )
+            })(&(self.resolved_info.as_ref().unwrap().sortable_game_versions[0]));
+        for dep in d_arr {}
 
         Ok(())
     }
