@@ -1,6 +1,6 @@
 use super::ModInfo;
 use crate::platforms::mr::{PackModDescription, VersionFileResponse};
-impl From<PackModDescription> for ModInfo<PackModDescription, VersionFileResponse> {
+impl From<PackModDescription> for ModInfo<PackModDescription, VersionFileResponse, ModrinthDependency> {
     fn from(value: PackModDescription) -> Self {
         Self {
             config: value,
@@ -13,3 +13,6 @@ impl From<PackModDescription> for ModInfo<PackModDescription, VersionFileRespons
         }
     }
 }
+
+#[derive(Debug)]
+pub struct ModrinthDependency(String);

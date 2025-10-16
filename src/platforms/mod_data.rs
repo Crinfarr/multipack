@@ -3,6 +3,8 @@ pub mod modrinth_mod_data;
 
 use std::{error::Error, fmt::Display};
 
+use crate::platforms::{curse::CurseDependency, mr::ModrinthDependency};
+
 #[derive(Debug)]
 pub struct FetchError(String);
 impl Display for FetchError {
@@ -13,20 +15,12 @@ impl Display for FetchError {
 impl Error for FetchError {}
 
 #[derive(Default, Debug)]
-pub struct ModInfo<T, U> {
-    pub(super) config: T,
-    pub(super) resolved_info: Option<U>,
-    pub deps: Option<Vec<DependencyInfo>>,
+pub struct ModInfo<ConfType, ResolvableType, DepType> {
+    pub(super) config: ConfType,
+    pub(super) resolved_info: Option<ResolvableType>,
+    pub deps: Option<Vec<DepType>>,
     pub sha1: Option<String>,
     pub file_name: Option<String>,
     pub(in crate::platforms::mod_data) client: reqwest::Client, //reqwest::Client already uses Arc internally for clones (i am brain damaged)
     pub(super) resolved: bool,
-}
-pub trait DepResolve {
-    async fn resolve_deps(self) -> Self;
-}
-#[derive(Debug)]
-pub struct DependencyInfo {
-    curse_project_id: Option<u32>,
-    sha1: Option<String>,
 }

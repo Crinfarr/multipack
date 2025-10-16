@@ -1,8 +1,9 @@
+
 use crate::ModInfo;
 use crate::platforms::curse::{APIFile, HashAlgo, PackModDescription, RelationType};
-use color_eyre::Result;
+use color_eyre::{eyre, Result};
 
-impl From<PackModDescription> for ModInfo<PackModDescription, APIFile> {
+impl From<PackModDescription> for ModInfo<PackModDescription, APIFile, CurseDependency> {
     fn from(value: PackModDescription) -> Self {
         Self {
             config: value,
@@ -15,7 +16,7 @@ impl From<PackModDescription> for ModInfo<PackModDescription, APIFile> {
         }
     }
 }
-impl ModInfo<PackModDescription, APIFile> {
+impl ModInfo<PackModDescription, APIFile, CurseDependency> {
     pub async fn resolve_remotes(&mut self) -> Result<()> {
         let resp = self
             .client
@@ -50,10 +51,7 @@ impl ModInfo<PackModDescription, APIFile> {
                 data.dependencies
                     .iter()
                     .filter(|dep| dep.relation_type == RelationType::RequiredDependency)
-                    .map(|dep| super::DependencyInfo {
-                        curse_project_id: Some(dep.mod_id),
-                        sha1: None,
-                    })
+                    .map(|dep| CurseDependency(dep.mod_id))
                     .collect(),
             );
         } else {
@@ -68,4 +66,21 @@ impl ModInfo<PackModDescription, APIFile> {
         self.client = client.clone();
         return self;
     }
+    pub async fn resolve(&mut self) -> Result<()> {
+        let d_arr = match &self.deps {
+            None => {
+                    tracing::event!(tracing::Level::DEBUG, "No dependencies to fetch");
+                    &vec![]
+                },
+            Some(d) => d
+        };
+        let mut dep_hashes:Vec<String> = vec![];
+        for dep in d_arr {
+            // self.client.get("https://api.curseforge.com/v1/mods/{}/files?gameVersion={}&modLoaderType={}&gameVersionTypeID={}")
+        }
+
+        Ok(())
+    }
 }
+#[derive(Debug)]
+pub struct CurseDependency(u32);

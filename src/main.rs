@@ -135,12 +135,14 @@ async fn main() -> Result<()> {
                     ModInfo<
                         crate::platforms::curse::PackModDescription,
                         crate::platforms::curse::APIFile,
+                        crate::platforms::mod_data::curse_mod_data::CurseDependency
                     >,
                 > = Vec::default();
                 for mod_desc in file.files {
                     let mod_info: ModInfo<
                         crate::platforms::curse::PackModDescription,
                         crate::platforms::curse::APIFile,
+                        crate::platforms::mod_data::curse_mod_data::CurseDependency
                     > = ModInfo::from(mod_desc).with_shared_client(client.clone());
                     mods.push(mod_info);
                 }
